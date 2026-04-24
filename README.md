@@ -31,7 +31,7 @@ docker run -d \
   -e SERVER_HOST=ваш_ip_адрес \
   -e SERVER_PORT=8000 \
   -e EXEC_WHITELIST=ls,ps,df,top,npm,python \
-  mcp-docker-image
+  ghcr.io/pushkinmazila2/docker-mcp-remout:latest
 ```
 
 ---
