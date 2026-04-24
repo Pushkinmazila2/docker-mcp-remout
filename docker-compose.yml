@@ -1,0 +1,13 @@
+services:
+  docker-mcp:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    environment:
+      - MCP_AUTH_TOKEN=${MCP_AUTH_TOKEN:-sdojrtnosifsm}
+      - SERVER_HOST=${SERVER_HOST:-your-server}
+      - SERVER_PORT=${SERVER_PORT:-8000}
+      - EXEC_WHITELIST=ls,ps,df,cat,env,top,uptime
