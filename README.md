@@ -36,6 +36,16 @@ docker run -d \
 
 ---
 
+## 🚀 Быстрый старт (docker-compose.yml)
+
+Запустите сервер одной командой на удаленном хосте:
+
+```bash
+mkdir mcp-server && cd mcp-server
+```
+
+---
+
 ## ⚙️ Конфигурация (Environment Variables)
 
 
