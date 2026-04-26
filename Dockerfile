@@ -8,4 +8,4 @@ RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
 COPY server.py .
 EXPOSE 8000
 ENV PYTHONUNBUFFERED=1
-CMD ["uvicorn", "server:mcp", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8000"]
