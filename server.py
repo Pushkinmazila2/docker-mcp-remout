@@ -59,6 +59,7 @@ class BearerAuthMiddleware(BaseHTTPMiddleware):
 # ---------------------------------------------------------------------------
 print("\n" + "="*50)
 print("🚀 DOCKER MCP SERVER STARTED")
+print(f" {SERVER_NAME} ")
 print(f"🌍 URL: http://{SERVER_HOST}:{SERVER_PORT}/mcp")
 print(f"🔑 AUTH TOKEN: {AUTH_TOKEN if AUTH_TOKEN else 'DISABLED'}")
 print(f"🛡️  WHITELIST: {', '.join(EXEC_WHITELIST) if EXEC_WHITELIST else 'ALL'}")
@@ -291,7 +292,7 @@ def validate_volumes(volumes: dict | None) -> dict | None:
 # TOOLS - Containers
 # ===========================================================================
 
-@mcp.tool()
+@prefixed_tool()
 def get_system_info() -> dict:
     """Get host system capacity: CPU, RAM, and Disk space."""
     import shutil
@@ -315,7 +316,7 @@ def get_system_info() -> dict:
         "docker_version": client().version().get("Version")
     }
 
-@mcp.tool()
+@prefixed_tool()
 def list_containers_brief() -> str:
     """list of containers"""
     #Ultra-compact list of containers for token saving.
@@ -324,7 +325,7 @@ def list_containers_brief() -> str:
              for c in containers]
     return "ID | NAME | STATUS | IMAGE\n" + "\n".join(lines)
 
-@mcp.tool()
+@prefixed_tool()
 def list_containers(all: bool = False) -> list[dict]:
     """FULL List containers. all=True includes stopped ones."""
     containers = client().containers.list(all=all)
@@ -341,7 +342,7 @@ def list_containers(all: bool = False) -> list[dict]:
     return result
 
 
-@mcp.tool()
+@prefixed_tool()
 def create_container(
     image: str,
     name: str | None = None,
@@ -384,7 +385,7 @@ def create_container(
     c = client().containers.create(**kwargs)
     return {"id": c.short_id, "name": c.name, "status": c.status}
 
-@mcp.tool()
+@prefixed_tool()
 def run_container(
     image: str,
     name: str | None = None,
@@ -428,7 +429,7 @@ def run_container(
     return {"id": c.short_id, "name": c.name, "status": c.status}
 
 
-@mcp.tool()
+@prefixed_tool()
 def recreate_container(container_name: str, pull_new_image: bool = False) -> dict:
     """
     Stop, remove and re-create a container with the same config (docker compose recreate style).
@@ -467,7 +468,7 @@ def recreate_container(container_name: str, pull_new_image: bool = False) -> dic
     return {"id": new_c.short_id, "name": new_c.name, "status": new_c.status}
 
 
-@mcp.tool()
+@prefixed_tool()
 def start_container(container_name: str) -> dict:
     """Start a stopped container."""
     c = client().containers.get(container_name)
@@ -476,7 +477,7 @@ def start_container(container_name: str) -> dict:
     return {"id": c.short_id, "name": c.name, "status": c.status}
 
 
-@mcp.tool()
+@prefixed_tool()
 def stop_container(container_name: str, timeout: int = 10) -> dict:
     """
     Stop a running container.
@@ -491,7 +492,7 @@ def stop_container(container_name: str, timeout: int = 10) -> dict:
     return {"id": c.short_id, "name": c.name, "status": c.status}
 
 
-@mcp.tool()
+@prefixed_tool()
 def remove_container(container_name: str, force: bool = False, remove_volumes: bool = False) -> dict:
     """
     Remove a container.
@@ -508,7 +509,7 @@ def remove_container(container_name: str, force: bool = False, remove_volumes: b
     return {"id": cid, "name": name, "removed": True}
 
 
-@mcp.tool()
+@prefixed_tool()
 def fetch_container_logs(
     container_name: str,
     tail: int = 100,
@@ -532,7 +533,7 @@ def fetch_container_logs(
     return logs.decode("utf-8", errors="replace")
 
 
-@mcp.tool()
+@prefixed_tool()
 def get_container_stats(container_name: str) -> dict:
     """Get live CPU and memory stats for a container."""
     c = client().containers.get(container_name)
@@ -556,7 +557,7 @@ def get_container_stats(container_name: str) -> dict:
     }
 
 
-@mcp.tool()
+@prefixed_tool()
 def list_resource_limits(container_name: str) -> dict:
     """
     Show current CPU and memory resource limits for a container.
@@ -579,7 +580,7 @@ def list_resource_limits(container_name: str) -> dict:
     }
 
 
-@mcp.tool()
+@prefixed_tool()
 def edit_resource_limits(
     container_name: str,
     memory: str | None = None,
@@ -619,7 +620,7 @@ def edit_resource_limits(
     return list_resource_limits(container_name)
 
 
-@mcp.tool()
+@prefixed_tool()
 def exec_container(
     container_name: str,
     command: str,
@@ -676,7 +677,7 @@ def exec_container(
 # TOOLS - Images
 # ===========================================================================
 
-@mcp.tool()
+@prefixed_tool()
 def list_images(name: str | None = None) -> list[dict]:
     """
     List local Docker images.
@@ -696,7 +697,7 @@ def list_images(name: str | None = None) -> list[dict]:
     return result
 
 
-@mcp.tool()
+@prefixed_tool()
 def pull_image(image: str, tag: str = "latest") -> dict:
     """
     Pull an image from a registry.
@@ -709,7 +710,7 @@ def pull_image(image: str, tag: str = "latest") -> dict:
     return {"id": img.short_id, "tags": img.tags}
 
 
-@mcp.tool()
+@prefixed_tool()
 def push_image(image: str, tag: str = "latest", auth_config: dict | None = None) -> str:
     """
     Push an image to a registry.
@@ -726,7 +727,7 @@ def push_image(image: str, tag: str = "latest", auth_config: dict | None = None)
     return result
 
 
-@mcp.tool()
+@prefixed_tool()
 def build_image(
     path: str,
     tag: str | None = None,
@@ -757,7 +758,7 @@ def build_image(
     }
 
 
-@mcp.tool()
+@prefixed_tool()
 def remove_image(image: str, force: bool = False, noprune: bool = False) -> dict:
     """
     Remove a local image.
@@ -775,7 +776,7 @@ def remove_image(image: str, force: bool = False, noprune: bool = False) -> dict
 # TOOLS - Networks
 # ===========================================================================
 
-@mcp.tool()
+@prefixed_tool()
 def list_networks() -> list[dict]:
     """List all Docker networks."""
     networks = client().networks.list()
@@ -790,7 +791,7 @@ def list_networks() -> list[dict]:
     ]
 
 
-@mcp.tool()
+@prefixed_tool()
 def create_network(
     name: str,
     driver: str = "bridge",
@@ -812,7 +813,7 @@ def create_network(
     return {"id": n.short_id, "name": n.name, "driver": n.attrs["Driver"]}
 
 
-@mcp.tool()
+@prefixed_tool()
 def remove_network(network_name: str) -> dict:
     """
     Remove a Docker network.
@@ -829,7 +830,7 @@ def remove_network(network_name: str) -> dict:
 # TOOLS - Volumes
 # ===========================================================================
 
-@mcp.tool()
+@prefixed_tool()
 def list_volumes() -> list[dict]:
     """List all Docker volumes."""
     volumes = client().volumes.list()
@@ -844,7 +845,7 @@ def list_volumes() -> list[dict]:
     ]
 
 
-@mcp.tool()
+@prefixed_tool()
 def create_volume(
     name: str,
     driver: str = "local",
@@ -867,7 +868,7 @@ def create_volume(
     return {"name": v.name, "driver": v.attrs["Driver"], "mountpoint": v.attrs["Mountpoint"]}
 
 
-@mcp.tool()
+@prefixed_tool()
 def remove_volume(volume_name: str, force: bool = False) -> dict:
     """
     Remove a Docker volume.
@@ -884,7 +885,7 @@ def remove_volume(volume_name: str, force: bool = False) -> dict:
 # TOOLS - Containers
 # ===========================================================================
 
-@mcp.tool()
+@prefixed_tool()
 def get_system_status() -> str:
     """Get host uptime, memory, and disk usage in one go."""
     import shutil, psutil
@@ -897,7 +898,7 @@ def get_system_status() -> str:
         f"CPU Load: {psutil.cpu_percent(interval=0.5)}%"
     )
 
-@mcp.tool()
+@prefixed_tool()
 def read_container_file(container_name: str, path: str, grep: str | None = None, last_lines: int = 100) -> str:
     """Read a file from container with optional filtering."""
     c = client().containers.get(container_name)
@@ -910,7 +911,7 @@ def read_container_file(container_name: str, path: str, grep: str | None = None,
     exit_code, output = c.exec_run(f"sh -c '{cmd}'")
     return output.decode("utf-8", errors="replace")
 
-@mcp.tool()
+@prefixed_tool()
 def read_file_full(container_name: str, path: str) -> str:
     """
     READ ENTIRE FILE CONTENT. 
@@ -937,7 +938,7 @@ def read_file_full(container_name: str, path: str) -> str:
         return f"Error: {str(e)}"
 
 
-@mcp.tool()
+@prefixed_tool()
 def write_container_file(container_name: str, path: str, content: str, append: bool = False) -> str:
     """Create or overwrite a file inside a container."""
     c = client().containers.get(container_name)
@@ -952,7 +953,7 @@ def write_container_file(container_name: str, path: str, content: str, append: b
     exit_code, output = c.exec_run(f"sh -c '{cmd}'")
     return "Success" if exit_code == 0 else f"Error: {output.decode()}"
 
-@mcp.tool()
+@prefixed_tool()
 def delete_container_file(container_name: str, path: str) -> str:
     """Delete a file inside a container. Use with caution."""
     if path in ("/", "/etc", "/var", "/root"):
@@ -963,7 +964,7 @@ def delete_container_file(container_name: str, path: str) -> str:
     return "Deleted" if exit_code == 0 else f"Error: {output.decode()}"
 
 
-@mcp.tool()
+@prefixed_tool()
 def list_container_processes(container_name: str) -> str:
     """List running processes inside a container."""
     c = client().containers.get(container_name)
@@ -974,7 +975,7 @@ def list_container_processes(container_name: str) -> str:
         return "\n".join(lines[:30]) + "\n... [truncated]"
     return "\n".join(lines)
 
-@mcp.tool()
+@prefixed_tool()
 def list_directory(container_name: str, path: str = "/") -> str:
     """List files in a specific container directory."""
     c = client().containers.get(container_name)
@@ -988,7 +989,7 @@ def list_directory(container_name: str, path: str = "/") -> str:
 # get_identity_info
 # ===========================================================================
 
-@mcp.tool()
+@prefixed_tool()
 def get_host_identity() -> dict:
     """
     Get information about the PHYSICAL HOST (node) where this containers are running.
@@ -1013,7 +1014,7 @@ def get_host_identity() -> dict:
         "is_read_only_fs": not os.access('/app', os.W_OK)
     }
 
-@mcp.tool()
+@prefixed_tool()
 def get_host_network() -> dict:
     """
     Get IP addresses of the PHYSICAL HOST.
