@@ -294,6 +294,42 @@ def validate_volumes(volumes: dict | None) -> dict | None:
 # ===========================================================================
 
 @prefixed_tool()
+def inspect_container_brief(container_name: str) -> dict:
+    """
+    Get ESSENTIAL config of a container. 
+    Returns: State, Network, Mounts, and Image info.
+    Use this first to save tokens.
+    """
+    try:
+        c = client().containers.get(container_name)
+        at = c.attrs
+        return {
+            "name": at.get("Name"),
+            "status": at.get("State", {}).get("Status"),
+            "exit_code": at.get("State", {}).get("ExitCode"),
+            "ip_address": next(iter(at.get("NetworkSettings", {}).get("Networks", {}).values()), {}).get("IPAddress"),
+            "image": at.get("Config", {}).get("Image"),
+            "mounts": [{"src": m.get("Source"), "dst": m.get("Destination")} for m in at.get("Mounts", [])],
+            "restart_policy": at.get("HostConfig", {}).get("RestartPolicy", {}).get("Name")
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+@prefixed_tool()
+def inspect_container_full(container_name: str) -> dict:
+    """
+    Get FULL raw JSON inspection data for a container.
+    Warning: This consumes a lot of tokens.
+    """
+    try:
+        c = client().containers.get(container_name)
+        data = c.attrs
+        return data 
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@prefixed_tool()
 def get_system_info() -> dict:
     """Get host system capacity: CPU, RAM, and Disk space."""
     import shutil
