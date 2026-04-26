@@ -6,8 +6,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir mcp[cli] docker uvicorn starlette
 COPY server.py .
-RUN useradd -m mcpuser
-USER mcpuser
 EXPOSE 8000
 ENV PYTHONUNBUFFERED=1
 CMD ["uvicorn", "server:mcp", "--host", "0.0.0.0", "--port", "8000"]
