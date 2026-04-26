@@ -622,7 +622,6 @@ def exec_container(
 ) -> dict:
     """
     Execute a command inside a running container.
-
     If EXEC_WHITELIST env is set, only listed commands are allowed.
 
     Args:
@@ -632,24 +631,38 @@ def exec_container(
         environment: Extra env vars for this exec
         user: Run as this user, e.g. "root" or "1000"
     """
-    cmd_name = command.strip().split()[0]
+    allowed = ", ".join(EXEC_WHITELIST) if EXEC_WHITELIST else "ALL (No restrictions)"
+    exec_container.__doc__ = f"Execute command in container. ALLOWED COMMANDS: {allowed}"
+
+    command_clean = command.strip()
+    cmd_name = command_clean.split()[0]
+    
     if EXEC_WHITELIST is not None and cmd_name not in EXEC_WHITELIST:
         return {
             "exit_code": 1,
-            "output": f"Command '{cmd_name}' is not in the exec whitelist: {EXEC_WHITELIST}",
+            "output": f"ERROR: '{cmd_name}' is not in whitelist. Allowed: {allowed}",
         }
 
-    c = client().containers.get(container_name)
-    kwargs: dict = {"cmd": ["/bin/sh", "-c", command], "stdout": True, "stderr": True}
-    if workdir:     kwargs["workdir"]     = workdir
-    if environment: kwargs["environment"] = environment
-    if user:        kwargs["user"]        = user
+    try:
+        c = client().containers.get(container_name)
+        kwargs: dict = {"cmd": ["/bin/sh", "-c", command_clean], "stdout": True, "stderr": True}
+        if workdir:     kwargs["workdir"]     = workdir
+        if environment: kwargs["environment"] = environment
+        if user:        kwargs["user"]        = user
 
-    exit_code, output = c.exec_run(**kwargs)
-    return {
-        "exit_code": exit_code,
-        "output": output.decode("utf-8", errors="replace"),
-    }
+        exit_code, output = c.exec_run(**kwargs)
+        
+        decoded_output = output.decode("utf-8", errors="replace")
+        if len(decoded_output) > 4000:
+            decoded_output = decoded_output[:4000] + "\n... [Output truncated to save tokens] ..."
+
+        return {
+            "exit_code": exit_code,
+            "output": decoded_output,
+        }
+    except Exception as e:
+        return {"exit_code": 1, "output": str(e)}
+
 
 
 # ===========================================================================
