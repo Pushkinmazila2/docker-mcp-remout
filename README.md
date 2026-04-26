@@ -11,7 +11,7 @@
 
 - **📦 Контейнеры:** Полный цикл управления (list, create, start, stop, remove, restart).
 - **📋 Логи и Статистика:** Чтение логов (`tail`) и мониторинг ресурсов (`stats`) в реальном времени.
-- **🛠 Инструментарий:** Управление образами (build, pull, push), сетями и томами (volumes).
+- **🛠 Инструментарий:** Управление образами (build, pull, push), сетями и томами (volumes) **Whitelist** .
 - **⚡ Безопасный Exec:** Выполнение команд внутри контейнеров с поддержкой **Whitelist** (белого списка).
 - **🛡 Безопасность:** Авторизация через `Bearer Token` и встроенная защита от DNS-rebinding.
 - **🌐 Web UI:** Интерактивная страница-инструкция по адресу сервера.
@@ -27,10 +27,9 @@ docker run -d \
   --name mcp-docker-manager \
   -p 8000:8000 \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -e MCP_AUTH_TOKEN=ваш_секретный_токен \
   -e SERVER_HOST=ваш_ip_адрес \
   -e SERVER_PORT=8000 \
-  -e EXEC_WHITELIST=ls,ps,df,top,npm,python \
+  -e EXEC_WHITELIST=ls,ps,df,top \
   ghcr.io/pushkinmazila2/docker-mcp-remote:latest
 ```
 
@@ -51,7 +50,6 @@ mkdir mcp-server && cd mcp-server
 
 | Переменная | Описание | Значение по умолчанию |
 | :--- | :--- | :--- |
-| `MCP_AUTH_TOKEN` | Bearer токен для защиты подключения. | `""` (обязательно для защиты!) |
 | `SERVER_HOST` | Публичный IP или домен вашего сервера. | `your-server` |
 | `SERVER_PORT` | Порт приложения. | `8000` |
 | `EXEC_WHITELIST` | Список разрешенных команд для `exec` через запятую. | `null` (разрешены все) |
