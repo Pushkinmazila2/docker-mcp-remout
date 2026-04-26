@@ -872,6 +872,110 @@ def remove_volume(volume_name: str, force: bool = False) -> dict:
     v = client().volumes.get(volume_name)
     v.remove(force=force)
     return {"name": volume_name, "removed": True}
+    
+# ===========================================================================
+# TOOLS - Containers
+# ===========================================================================
+
+@mcp.tool()
+def get_system_status() -> str:
+    """Get host uptime, memory, and disk usage in one go."""
+    import shutil, psutil
+    
+    vm = psutil.virtual_memory()
+    du = shutil.disk_usage("/")
+    return (
+        f"RAM: {vm.percent}% used ({vm.available // 1024**2}MB free)\n"
+        f"Disk: {du.used // 1024**3}GB/{du.total // 1024**3}GB used\n"
+        f"CPU Load: {psutil.cpu_percent(interval=0.5)}%"
+    )
+
+@mcp.tool()
+def read_container_file(container_name: str, path: str, grep: str | None = None, last_lines: int = 100) -> str:
+    """Read a file from container with optional filtering."""
+    c = client().containers.get(container_name)
+    
+    if grep:
+        cmd = f"grep -i '{grep}' {path} | tail -n {last_lines}"
+    else:
+        cmd = f"tail -n {last_lines} {path}"
+        
+    exit_code, output = c.exec_run(f"sh -c '{cmd}'")
+    return output.decode("utf-8", errors="replace")
+
+@mcp.tool()
+def read_file_full(container_name: str, path: str) -> str:
+    """
+    READ ENTIRE FILE CONTENT. 
+    WARNING: DO NOT USE WITHOUT ABSOLUTE NECESSITY! 
+    This tool consumes a huge amount of tokens. For large logs or configs, 
+    use 'read_container_file' with 'grep' or 'last_lines' instead.
+    Only use this if you need to analyze the full structure of a config file.
+    """
+    try:
+        c = client().containers.get(container_name)
+        exit_code, size_out = c.exec_run(f"stat -c %s {path}")
+        if exit_code == 0:
+            file_size = int(size_out.decode().strip())
+            if file_size > 500_000:
+                return f"ERROR: File is too large ({file_size} bytes). Use 'read_container_file' to read it in parts."
+
+        exit_code, output = c.exec_run(f"cat {path}")
+        
+        if exit_code != 0:
+            return f"Error reading file: {output.decode()}"
+            
+        return output.decode("utf-8", errors="replace")
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+
+@mcp.tool()
+def write_container_file(container_name: str, path: str, content: str, append: bool = False) -> str:
+    """Create or overwrite a file inside a container."""
+    c = client().containers.get(container_name)
+    
+
+    import base64
+    b64_content = base64.b64encode(content.encode()).decode()
+    
+    op = ">>" if append else ">"
+    cmd = f"echo '{b64_content}' | base64 -d {op} {path}"
+    
+    exit_code, output = c.exec_run(f"sh -c '{cmd}'")
+    return "Success" if exit_code == 0 else f"Error: {output.decode()}"
+
+@mcp.tool()
+def delete_container_file(container_name: str, path: str) -> str:
+    """Delete a file inside a container. Use with caution."""
+    if path in ("/", "/etc", "/var", "/root"):
+        return "Error: Protection trigger. Cannot delete system directories."
+        
+    c = client().containers.get(container_name)
+    exit_code, output = c.exec_run(f"rm -rf {path}")
+    return "Deleted" if exit_code == 0 else f"Error: {output.decode()}"
+
+
+@mcp.tool()
+def list_container_processes(container_name: str) -> str:
+    """List running processes inside a container."""
+    c = client().containers.get(container_name)
+    exit_code, output = c.exec_run("ps -ef")
+    
+    lines = output.decode("utf-8").splitlines()
+    if len(lines) > 30:
+        return "\n".join(lines[:30]) + "\n... [truncated]"
+    return "\n".join(lines)
+
+@mcp.tool()
+def list_directory(container_name: str, path: str = "/") -> str:
+    """List files in a specific container directory."""
+    c = client().containers.get(container_name)
+    exit_code, output = c.exec_run(f"ls -F {path}")
+    
+    if exit_code != 0:
+        return f"Error: {output.decode()}"
+    return output.decode("utf-8")
 
 
 # ===========================================================================
