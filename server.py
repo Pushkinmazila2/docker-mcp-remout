@@ -9,9 +9,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse, HTMLResponse
 
-AUTH_TOKEN = os.environ.get("MCP_AUTH_TOKEN", "")
 SERVER_HOST = os.environ.get("SERVER_HOST", "your-server")
 SERVER_PORT = os.environ.get("SERVER_PORT", "8000")
+SAFE_MOUNT_DIR = os.environ.get("SAFE_MOUNT_DIR", "/app/data")
 
 if not AUTH_TOKEN:
     AUTH_TOKEN = secrets.token_urlsafe(32)
@@ -186,6 +186,7 @@ async def index(request: Request):
     <h2>Available Tools</h2>
     <div class="section-label">Containers</div>
     <div class="tools-grid">
+    <div class="tool">MINI_list_of_containers</div>
       <div class="tool">list_containers</div>
       <div class="tool">create_container</div>
       <div class="tool">run_container</div>
@@ -250,12 +251,60 @@ async def health(request: Request):
 
 
 # ===========================================================================
+# validate_volumes
+# ===========================================================================
+
+def validate_volumes(volumes: dict | None) -> dict | None:
+    if not volumes:
+        return None
+    
+    for host_path in volumes.keys():
+        if host_path.startswith("/"):
+            real_path = os.path.realpath(host_path)
+            if not real_path.startswith(SAFE_MOUNT_DIR):
+                raise ValueError(f"Access denied to path: {host_path}. Only {SAFE_MOUNT_DIR} is allowed.")
+    return volumes
+
+# ===========================================================================
 # TOOLS - Containers
 # ===========================================================================
 
 @mcp.tool()
+def get_system_info() -> dict:
+    """Get host system capacity: CPU, RAM, and Disk space."""
+    import shutil
+    import psutil
+
+    vm = psutil.virtual_memory()
+    du = shutil.disk_usage("/")
+    
+    return {
+        "cpu_count": psutil.cpu_count(),
+        "cpu_load_percent": psutil.cpu_percent(interval=1),
+        "memory": {
+            "total_gb": round(vm.total / (1024**3), 1),
+            "available_gb": round(vm.available / (1024**3), 1),
+            "percent_used": vm.percent
+        },
+        "disk": {
+            "total_gb": round(du.total / (1024**3), 1),
+            "free_gb": round(du.free / (1024**3), 1)
+        },
+        "docker_version": client().version().get("Version")
+    }
+
+@mcp.tool()
+def list_containers_brief() -> str:
+    """list of containers"""
+    #Ultra-compact list of containers for token saving.
+    containers = client().containers.list(all=True)
+    lines = [f"{c.short_id} | {c.name[:20]} | {c.status} | {c.image.tags[0] if c.image.tags else 'no-tag'}" 
+             for c in containers]
+    return "ID | NAME | STATUS | IMAGE\n" + "\n".join(lines)
+
+@mcp.tool()
 def list_containers(all: bool = False) -> list[dict]:
-    """List containers. all=True includes stopped ones."""
+    """FULL List containers. all=True includes stopped ones."""
     containers = client().containers.list(all=all)
     result = []
     for c in containers:
@@ -296,6 +345,7 @@ def create_container(
         restart_policy: One of: no, always, on-failure, unless-stopped
         detach: Run in background (default True)
     """
+    kwargs["volumes"] = validate_volumes(volumes)
     kwargs: dict = {"image": image, "detach": detach}
     if name:        kwargs["name"] = name
     if command:     kwargs["command"] = command
@@ -336,6 +386,7 @@ def run_container(
         restart_policy: no / always / on-failure / unless-stopped
         remove: Auto-remove container when it exits
     """
+    kwargs["volumes"] = validate_volumes(volumes)
     kwargs: dict = {"image": image, "detach": True, "remove": remove}
     if name:        kwargs["name"] = name
     if command:     kwargs["command"] = command
