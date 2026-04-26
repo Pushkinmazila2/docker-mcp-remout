@@ -1006,6 +1006,43 @@ def get_host_identity() -> dict:
         "is_read_only_fs": not os.access('/app', os.W_OK)
     }
 
+@mcp.tool()
+def get_host_network() -> dict:
+    """
+    Get IP addresses of the PHYSICAL HOST.
+    Returns internal LAN IPs and public WAN IP.
+    """
+    import urllib.request
+    import socket
+    
+    dc = client()
+    # 1. Получаем имя хоста и системную инфо через Docker API
+    info = dc.info()
+    host_name = info.get("Name")
+    
+    # 2. Пытаемся узнать публичный IP хоста
+    public_ip = "Unknown"
+    try:
+        # Используем встроенный urllib, чтобы не ставить лишних либ
+        with urllib.request.urlopen('https://icanhazip.com', timeout=3) as response:
+            public_ip = response.read().decode('utf-8').strip()
+    except:
+        try:
+            with urllib.request.urlopen('https://ipify.org', timeout=3) as response:
+                public_ip = response.read().decode('utf-8').strip()
+        except:
+            pass
+
+    # 3. Собираем все локальные IP, которые видит демон Docker на хосте
+    # (NodeAddress часто пустой, поэтому берем из данных системы)
+    return {
+        "node_name_on_host": host_name,
+        "public_ip_wan": public_ip,
+        "host_operating_system": info.get("OperatingSystem"),
+        "docker_server_version": info.get("ServerVersion"),
+        "note": "Public IP is retrieved via external lookup from the host's perspective."
+    }
+
 
 
 # ===========================================================================
