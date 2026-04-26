@@ -977,6 +977,37 @@ def list_directory(container_name: str, path: str = "/") -> str:
         return f"Error: {output.decode()}"
     return output.decode("utf-8")
 
+# ===========================================================================
+# get_identity_info
+# ===========================================================================
+
+@mcp.tool()
+def get_identity_info() -> dict:
+    """
+    Get detailed information about the server's identity, network, and environment.
+    Helps determine which physical or virtual host the MCP server is running on.
+    """
+    import socket
+    import psutil
+    
+    # Собираем сетевые интерфейсы (только активные и полезные)
+    interfaces = {}
+    for iface, addrs in psutil.net_if_addrs().items():
+        for addr in addrs:
+            if addr.family == socket.AF_INET: # Только IPv4
+                interfaces[iface] = addr.address
+
+    return {
+        "hostname": socket.gethostname(),
+        "fqdn": socket.getfqdn(),
+        "internal_ip": socket.gethostbyname(socket.gethostname()),
+        "network_interfaces": interfaces,
+        "os_info": os.environ.get("PRETTY_NAME", "Linux (Docker Container)"),
+        "mcp_server_host_env": SERVER_HOST,  # Твоя переменная из ENV
+        "is_docker": os.path.exists("/.dockerenv"),
+        "mount_points": [m.mountpoint for m in psutil.disk_partitions() if 'docker' not in m.mountpoint]
+    }
+
 
 # ===========================================================================
 # ASGI app
