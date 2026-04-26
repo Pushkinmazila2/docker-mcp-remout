@@ -1,6 +1,7 @@
 import os
 import json
 import secrets
+import socket
 import docker
 import docker.errors
 from mcp.server.fastmcp import FastMCP
@@ -29,7 +30,7 @@ SAFE_MOUNT_PATHS = [
     for p in _safe_paths_raw.split(",") if p.strip()
 ]
 
-SERVER_NAME = os.environ.get("SERVER_NAME", "default")
+SERVER_NAME = os.environ.get("SERVER_NAME") or socket.gethostname()
 def prefixed_tool(name: str | None = None, **kwargs):
     def decorator(func):
         tool_base_name = name or func.__name__
