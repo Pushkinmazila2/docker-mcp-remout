@@ -42,10 +42,7 @@ def _exec(client: paramiko.SSHClient, cmd: str) -> tuple[str, str, int]:
 def docker_list_containers(server: ServerConfig, all_containers: bool = True) -> list[ContainerInfo]:
     """Возвращает список контейнеров с хоста"""
     flag = "-a" if all_containers else ""
-    cmd = (
-        f"docker ps {flag} --format "
-        "'{{{{.ID}}}}\t{{{{.Names}}}}\t{{{{.Image}}}}\t{{{{.Status}}}}\t{{{{.State}}}}\t{{{{.Ports}}}}'"
-    )
+    cmd = f'docker ps {flag} --format "{{{{.ID}}}}\\t{{{{.Names}}}}\\t{{{{.Image}}}}\\t{{{{.Status}}}}\\t{{{{.State}}}}\\t{{{{.Ports}}}}"'
     with ssh_connect(server) as client:
         out, err, code = _exec(client, cmd)
 
