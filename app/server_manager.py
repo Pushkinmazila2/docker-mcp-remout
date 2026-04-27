@@ -58,7 +58,7 @@ def add_server(req: AddServerRequest) -> ServerConfig:
         pub_key_path = Path(str(private_key_path) + ".pub")
         pub_key = pub_key_path.read_text().strip()
         description = (req.description or "") + f"\n[PUBLIC KEY - add to authorized_keys on host]:\n{pub_key}"
-        else:
+    else:
         description = req.description
 
     # Определяем key_path в зависимости от типа аутентификации
