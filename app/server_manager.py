@@ -58,8 +58,18 @@ def add_server(req: AddServerRequest) -> ServerConfig:
         pub_key_path = Path(str(private_key_path) + ".pub")
         pub_key = pub_key_path.read_text().strip()
         description = (req.description or "") + f"\n[PUBLIC KEY - add to authorized_keys on host]:\n{pub_key}"
-    else:
+        else:
         description = req.description
+
+    # Определяем key_path в зависимости от типа аутентификации
+    if req.auth_type == ServerAuthType.PASSWORD:
+        final_key_path = None
+    elif req.auth_type == ServerAuthType.KEY_PATH:
+        final_key_path = req.key_path
+    elif req.auth_type == ServerAuthType.GENERATE_KEY:
+        final_key_path = str(KEYS_DIR / key_name) if key_name else None
+    else:
+        final_key_path = None
 
     config = ServerConfig(
         id=server_id,
@@ -69,9 +79,7 @@ def add_server(req: AddServerRequest) -> ServerConfig:
         username=req.username,
         auth_type=req.auth_type,
         password=req.password if req.auth_type == ServerAuthType.PASSWORD else None,
-        key_path=req.key_path if req.auth_type == ServerAuthType.KEY_PATH else (
-            str(KEYS_DIR / key_name) if key_name else None
-        ),
+        key_path=final_key_path,
         generated_key_name=key_name,
         description=description,
         tags=req.tags,
