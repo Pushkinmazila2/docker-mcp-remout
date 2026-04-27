@@ -41,6 +41,18 @@ class AddServerRequest(BaseModel):
     tags: list[str] = []
 
 
+class CreateRoleRequest(BaseModel):
+    username: str
+    allowed_tools: list[str]
+    token: Optional[str] = None
+    description: Optional[str] = None
+
+
+class UpdateRoleRequest(BaseModel):
+    allowed_tools: Optional[list[str]] = None
+    description: Optional[str] = None
+
+
 class ContainerInfo(BaseModel):
     id: str
     name: str

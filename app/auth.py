@@ -1,17 +1,21 @@
 import os
 import secrets
+import logging
 from fastapi import HTTPException, Header
-from typing import Optional
+from typing import Optional, List
 from .models import AuthLevel
+from . import role_manager
+
+logger = logging.getLogger(__name__)
 
 # Токены задаются через переменные окружения
-USER_TOKEN = os.getenv("MCP_USER_TOKEN", "user-token-change-me")
+USER_TOKEN = os.getenv("MCP_USER_TOKEN", "")
 if not USER_TOKEN:
     USER_TOKEN = secrets.token_urlsafe(32)
-ADMIN_TOKEN = os.getenv("MCP_ADMIN_TOKEN", "admin-token-change-me")
+ADMIN_TOKEN = os.getenv("MCP_ADMIN_TOKEN", "")
 if not ADMIN_TOKEN:
     ADMIN_TOKEN = secrets.token_urlsafe(32)
-WEB_UI_TOKEN = os.getenv("WEB_UI_TOKEN", "webui-token-change-me")
+WEB_UI_TOKEN = os.getenv("WEB_UI_TOKEN", "")
 if not WEB_UI_TOKEN:
     WEB_UI_TOKEN = secrets.token_urlsafe(32)
 
@@ -19,13 +23,38 @@ if not WEB_UI_TOKEN:
 # ---------------------------------------------------------------------------
 # Logging Startup Info
 # ---------------------------------------------------------------------------
-print("\n" + "="*50)
-print("🚀 DOCKER MCP SERVER STARTED")
-#print(f"🌍 URL: http://{SERVER_HOST}:{SERVER_PORT}/mcp")
-print(f"🔑 AUTH USER_TOKEN: {USER_TOKEN if USER_TOKEN else 'DISABLED'}")
-print(f"🔑 AUTH ADMIN_TOKEN: {ADMIN_TOKEN if ADMIN_TOKEN else 'DISABLED'}")
-print(f"🔑 AUTH WEB_UI_TOKEN: {WEB_UI_TOKEN if WEB_UI_TOKEN else 'DISABLED'}")
-print("="*50 + "\n")
+def print_startup_info():
+    """Выводит информацию о токенах и ролях при старте"""
+    print("\n" + "="*60)
+    print("🚀 DOCKER MCP SERVER STARTED")
+    print("="*60)
+    print("\n📋 BUILT-IN TOKENS:")
+    print(f"  🔑 USER_TOKEN:   {USER_TOKEN}")
+    print(f"     Endpoint: /mcp/user")
+    print(f"  🔑 ADMIN_TOKEN:  {ADMIN_TOKEN}")
+    print(f"     Endpoint: /mcp/admin")
+    print(f"  🔑 WEB_UI_TOKEN: {WEB_UI_TOKEN}")
+    print(f"     Endpoint: / (Web UI)")
+    
+    # Выводим информацию о пользовательских ролях
+    roles = role_manager.list_roles()
+    if roles:
+        print("\n🎭 CUSTOM ROLES:")
+        for role in roles:
+            print(f"  👤 {role.username}")
+            print(f"     Token: {role.token}")
+            print(f"     Endpoint: /mcp/{role.username}")
+            print(f"     Tools: {', '.join(role.allowed_tools)}")
+            if role.description:
+                print(f"     Description: {role.description}")
+            print()
+    else:
+        print("\n🎭 CUSTOM ROLES: None (create via API)")
+    
+    print("="*60 + "\n")
+
+# Вызываем при импорте модуля
+print_startup_info()
 
 
 # Какие инструменты доступны каждому уровню
@@ -61,10 +90,22 @@ def get_auth_level(authorization: Optional[str]) -> AuthLevel:
     elif token == USER_TOKEN:
         return AuthLevel.USER
     else:
+        # Проверяем динамические роли
+        role = role_manager.get_role_by_token(token)
+        if role:
+            # Динамические роли считаются USER уровнем, но с кастомными инструментами
+            return AuthLevel.USER
         raise HTTPException(status_code=403, detail="Invalid token")
 
 
-def get_allowed_tools(level: AuthLevel) -> list[str]:
+def get_allowed_tools(level: AuthLevel, token: Optional[str] = None) -> list[str]:
+    """Возвращает список разрешенных инструментов для уровня доступа или роли"""
+    # Если передан токен, проверяем динамические роли
+    if token:
+        role = role_manager.get_role_by_token(token)
+        if role:
+            return role.allowed_tools
+    
     return TOOLS_BY_LEVEL.get(level, [])
 
 
