@@ -38,8 +38,13 @@ def add_server(req: AddServerRequest) -> ServerConfig:
     server_id = str(uuid.uuid4())[:8]
 
     key_name = None
+    description = req.description
+    final_auth_type = req.auth_type
+    final_key_path = None
+    final_password = None
 
-    if req.auth_type == ServerAuthType.GENERATE_KEY:
+    # Если используется пароль, генерируем ключи и устанавливаем их на хост
+    if req.auth_type == ServerAuthType.PASSWORD:
         # Генерируем SSH ключ
         key_name = f"key_{server_id}"
         private_key_path = KEYS_DIR / key_name
@@ -54,22 +59,72 @@ def add_server(req: AddServerRequest) -> ServerConfig:
 
         os.chmod(private_key_path, 0o600)
 
-        # Возвращаем публичный ключ в описании — его нужно добавить на целевой хост
+        # Читаем публичный ключ
+        pub_key_path = Path(str(private_key_path) + ".pub")
+        pub_key = pub_key_path.read_text().strip()
+
+        # Подключаемся по паролю и устанавливаем ключ
+        try:
+            import paramiko
+            client = paramiko.SSHClient()
+            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            client.connect(
+                hostname=req.host,
+                port=req.port,
+                username=req.username,
+                password=req.password,
+                timeout=10
+            )
+            
+            # Создаем .ssh директорию и добавляем ключ
+            commands = [
+                "mkdir -p ~/.ssh",
+                "chmod 700 ~/.ssh",
+                f"echo '{pub_key}' >> ~/.ssh/authorized_keys",
+                "chmod 600 ~/.ssh/authorized_keys"
+            ]
+            for cmd in commands:
+                stdin, stdout, stderr = client.exec_command(cmd)
+                exit_code = stdout.channel.recv_exit_status()
+                if exit_code != 0:
+                    err = stderr.read().decode().strip()
+                    raise RuntimeError(f"Failed to setup SSH key: {err}")
+            
+            client.close()
+            
+            # Меняем тип аутентификации на ключ
+            final_auth_type = ServerAuthType.GENERATE_KEY
+            final_key_path = str(private_key_path)
+            description = (req.description or "") + f"\n[SSH key auto-installed on {req.host}]"
+            
+        except Exception as e:
+            # Если не удалось установить ключ, сохраняем пароль
+            final_password = req.password
+            description = (req.description or "") + f"\n[Warning: Failed to install SSH key: {e}. Using password auth.]"
+    
+    elif req.auth_type == ServerAuthType.KEY_PATH:
+        final_key_path = req.key_path
+    
+    elif req.auth_type == ServerAuthType.GENERATE_KEY:
+        # Генерируем SSH ключ без установки
+        key_name = f"key_{server_id}"
+        private_key_path = KEYS_DIR / key_name
+        KEYS_DIR.mkdir(parents=True, exist_ok=True)
+
+        result = subprocess.run(
+            ["ssh-keygen", "-t", "ed25519", "-N", "", "-f", str(private_key_path)],
+            capture_output=True, text=True
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"ssh-keygen failed: {result.stderr}")
+
+        os.chmod(private_key_path, 0o600)
+
+        # Возвращаем публичный ключ в описании
         pub_key_path = Path(str(private_key_path) + ".pub")
         pub_key = pub_key_path.read_text().strip()
         description = (req.description or "") + f"\n[PUBLIC KEY - add to authorized_keys on host]:\n{pub_key}"
-    else:
-        description = req.description
-
-    # Определяем key_path в зависимости от типа аутентификации
-    if req.auth_type == ServerAuthType.PASSWORD:
-        final_key_path = None
-    elif req.auth_type == ServerAuthType.KEY_PATH:
-        final_key_path = req.key_path
-    elif req.auth_type == ServerAuthType.GENERATE_KEY:
-        final_key_path = str(KEYS_DIR / key_name) if key_name else None
-    else:
-        final_key_path = None
+        final_key_path = str(private_key_path)
 
     config = ServerConfig(
         id=server_id,
@@ -77,8 +132,8 @@ def add_server(req: AddServerRequest) -> ServerConfig:
         host=req.host,
         port=req.port,
         username=req.username,
-        auth_type=req.auth_type,
-        password=req.password if req.auth_type == ServerAuthType.PASSWORD else None,
+        auth_type=final_auth_type,
+        password=final_password,
         key_path=final_key_path,
         generated_key_name=key_name,
         description=description,
