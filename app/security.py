@@ -31,7 +31,8 @@ SENSITIVE_PATTERNS = [
     (r'gh[pous]_[a-zA-Z0-9]{36}', '***GITHUB_TOKEN_REDACTED***'),
 
     #AI_TOKENS
-    (r'sk-[pous]_[a-zA-Z0-9]{36}', '***AI_TOKEN_REDACTED***'),
+    # Универсальный шаблон для большинства AI сервисов
+    (r'\b(sk-(?:ant|proj|svc)-[a-zA-Z0-9-_]{30,}|sk-[a-zA-Z0-9]{30,})\b', '***AI_TOKEN_REDACTED***'),
 
     #Connection Strings
     (r'(mongodb(?:\+srv)?|postgres(?:ql)?|mysql|redis|amqp(?:s)?)://([^@\s!]+):([^@\s!]+)@', r'\1://***USER***:***PASS***@')
