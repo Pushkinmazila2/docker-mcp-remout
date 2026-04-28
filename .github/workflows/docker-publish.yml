@@ -3,7 +3,7 @@ name: Build and Publish Docker Image
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch: # Позволяет запускать сборку вручную
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -15,6 +15,7 @@ jobs:
     permissions:
       contents: read
       packages: write
+      security-events: write # Нужно для публикации отчетов во вкладку Security
 
     steps:
       - name: Checkout repository
@@ -27,7 +28,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -36,6 +37,27 @@ jobs:
             type=raw,value=latest
             type=sha,format=short
 
+      # 1. Сначала просто собираем образ локально (без пуша)
+      - name: Build Docker image locally
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true # Загружает образ в локальный Docker daemon для сканирования
+          tags: local-scan-target:test
+
+      # 2. Сканируем образ на наличие уязвимостей
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'local-scan-target:test'
+          format: 'table'
+          exit-code: '1' # Прервать сборку, если найдены уязвимости
+          ignore-unfixed: true # Игнорировать CVE, для которых еще нет патча
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+      # 3. Если сканирование прошло успешно — пушим в реестр
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
