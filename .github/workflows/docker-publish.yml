@@ -51,31 +51,26 @@ jobs:
           load: true
           tags: local-scan-target:test
 
-      # 2. Сканируем и сохраняем результат в файл markdown
+            # 2. Сканируем и сохраняем результат в файл (простой текстовый формат)
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'local-scan-target:test'
           format: 'table'
-          output: 'trivy-results.txt' # Сначала в текст для логов
-          exit-code: '0' # НЕ КРАШИМ сборку
+          output: 'trivy-report.md' # Пишем таблицу прямо в файл
+          exit-code: '0'
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
 
-      # 3. Генерируем красивый Markdown для файла
-      - name: Generate Markdown Report
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'local-scan-target:test'
-          format: 'template'
-          template: "@contrib/markdown.tpl"
-          output: 'trivy-report.md'
-          exit-code: '0'
+      # 3. Оборачиваем таблицу в блоки кода Markdown для красоты
+      - name: Format Report
+        run: |
+          sed -i '1i ```text' trivy-report.md
+          echo '```' >> trivy-report.md
 
-      # 4. Записываем результат в SECURITY.md между якорями
+      # 4. Записываем результат в SECURITY.md
       - name: Update SECURITY.md
         run: |
-          # Вырезаем всё между якорями и вставляем новый отчет
           sed -i '/<!-- TRIVY_START -->/,/<!-- TRIVY_END -->/{//!d}' SECURITY.md
           sed -i '/<!-- TRIVY_START -->/r trivy-report.md' SECURITY.md
 
