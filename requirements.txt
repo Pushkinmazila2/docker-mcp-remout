@@ -1,10 +1,10 @@
-fastapi==0.115.5
-uvicorn[standard]==0.32.1
-paramiko==3.5.0
+fastapi==0.115.8
+uvicorn[standard]==0.34.0
+paramiko==3.5.1
 pydantic==2.10.3
-python-multipart==0.0.18
-cryptography==42.0.5
+python-multipart==0.0.24
+cryptography==46.0.5
 
 # Vault providers
-hvac==2.1.0  # For HashiCorp Vault (default)
+hvac==2.3.0  # For HashiCorp Vault (default)
 # boto3==1.34.0  # For AWS Secrets Manager (optional)
