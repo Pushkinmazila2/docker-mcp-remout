@@ -2,6 +2,7 @@
 Определения MCP-инструментов и их исполнение.
 Каждый инструмент — словарь в формате MCP tools/list + функция-обработчик.
 """
+from typing import Optional
 from .models import AddServerRequest, ServerAuthType
 from . import server_manager, ssh_client
 from .security import sanitize_response
