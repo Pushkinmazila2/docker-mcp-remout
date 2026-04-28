@@ -3,3 +3,4 @@ uvicorn[standard]==0.32.1
 paramiko==3.5.0
 pydantic==2.10.3
 python-multipart==0.0.18
+cryptography==42.0.5

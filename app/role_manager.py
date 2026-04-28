@@ -4,6 +4,7 @@ import secrets
 from pathlib import Path
 from typing import Optional, List, Dict
 from pydantic import BaseModel
+from . import crypto
 
 ROLES_FILE = Path(os.getenv("DATA_DIR", "/data")) / "roles.json"
 
@@ -32,7 +33,7 @@ def generate_token() -> str:
     """Генерирует безопасный токен"""
     return secrets.token_urlsafe(32)
 
-def create_role(username: str, allowed_tools: List[str], token: Optional[str] = None, description: Optional[str] = None) -> Role:
+def create_role(username: str, allowed_tools: List[str], token: Optional[str] = None, description: Optional[str] = None, admin_bearer: Optional[str] = None) -> Role:
     """Создает новую роль"""
     from datetime import datetime
     
@@ -46,9 +47,18 @@ def create_role(username: str, allowed_tools: List[str], token: Optional[str] = 
     if not token:
         token = generate_token()
     
+    # Сохраняем оригинальный токен для возврата
+    original_token = token
+    
+    # Шифруем токен для хранения
+    if admin_bearer:
+        encrypted_token = crypto.encrypt_with_bearer(token, admin_bearer)
+    else:
+        encrypted_token = crypto.encrypt_with_master_key(token)
+    
     role = Role(
         username=username,
-        token=token,
+        token=encrypted_token,
         allowed_tools=allowed_tools,
         description=description,
         created_at=datetime.utcnow().isoformat()
@@ -57,6 +67,8 @@ def create_role(username: str, allowed_tools: List[str], token: Optional[str] = 
     roles[username] = role
     _save_roles(roles)
     
+    # Возвращаем роль с оригинальным токеном
+    role.token = original_token
     return role
 
 def get_role(username: str) -> Optional[Role]:
@@ -64,12 +76,25 @@ def get_role(username: str) -> Optional[Role]:
     roles = _load_roles()
     return roles.get(username)
 
-def get_role_by_token(token: str) -> Optional[Role]:
+def get_role_by_token(token: str, admin_bearer: Optional[str] = None) -> Optional[Role]:
     """Получает роль по токену"""
     roles = _load_roles()
     for role in roles.values():
-        if role.token == token:
-            return role
+        # Пробуем расшифровать токен и сравнить
+        try:
+            if admin_bearer:
+                decrypted_token = crypto.decrypt_with_bearer(role.token, admin_bearer)
+            else:
+                decrypted_token = crypto.decrypt_with_master_key(role.token)
+            
+            if decrypted_token == token:
+                # Возвращаем роль с расшифрованным токеном
+                role.token = decrypted_token
+                return role
+        except:
+            # Если не удалось расшифровать, пробуем сравнить напрямую (для обратной совместимости)
+            if role.token == token:
+                return role
     return None
 
 def list_roles() -> List[Role]:

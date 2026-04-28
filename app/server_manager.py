@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from .models import ServerConfig, AddServerRequest, ServerAuthType
+from . import crypto
 
 DATA_FILE = Path(os.getenv("DATA_DIR", "/data")) / "servers.json"
 KEYS_DIR = Path(os.getenv("KEYS_DIR", "/keys"))
@@ -29,11 +30,33 @@ def list_servers() -> list[ServerConfig]:
     return list(_load().values())
 
 
-def get_server(server_id: str) -> Optional[ServerConfig]:
-    return _load().get(server_id)
+def get_server(server_id: str, bearer_token: Optional[str] = None) -> Optional[ServerConfig]:
+    """Получает сервер и расшифровывает пароль если нужно"""
+    server = _load().get(server_id)
+    if not server:
+        return None
+    
+    # Расшифровываем пароль если он есть
+    if server.password and bearer_token:
+        try:
+            server.password = crypto.decrypt_with_bearer(server.password, bearer_token)
+        except:
+            # Если не удалось расшифровать bearer токеном, пробуем мастер-ключом
+            try:
+                server.password = crypto.decrypt_with_master_key(server.password)
+            except:
+                # Если не удалось расшифровать, оставляем как есть
+                pass
+    elif server.password:
+        try:
+            server.password = crypto.decrypt_with_master_key(server.password)
+        except:
+            pass
+    
+    return server
 
 
-def add_server(req: AddServerRequest) -> ServerConfig:
+def add_server(req: AddServerRequest, bearer_token: Optional[str] = None) -> ServerConfig:
     servers = _load()
     server_id = str(uuid.uuid4())[:8]
 
@@ -126,6 +149,14 @@ def add_server(req: AddServerRequest) -> ServerConfig:
         description = (req.description or "") + f"\n[PUBLIC KEY - add to authorized_keys on host]:\n{pub_key}"
         final_key_path = str(private_key_path)
 
+        # Шифруем пароль если он есть и передан bearer токен
+    encrypted_password = None
+    if final_password and bearer_token:
+        encrypted_password = crypto.encrypt_with_bearer(final_password, bearer_token)
+    elif final_password:
+        # Если bearer не передан, используем мастер-ключ
+        encrypted_password = crypto.encrypt_with_master_key(final_password)
+    
     config = ServerConfig(
         id=server_id,
         name=req.name,
@@ -133,7 +164,7 @@ def add_server(req: AddServerRequest) -> ServerConfig:
         port=req.port,
         username=req.username,
         auth_type=final_auth_type,
-        password=final_password,
+        password=encrypted_password,
         key_path=final_key_path,
         generated_key_name=key_name,
         description=description,

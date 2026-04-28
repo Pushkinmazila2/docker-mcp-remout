@@ -147,8 +147,9 @@ def handle_list_servers(_args: dict) -> dict:
 def handle_list_containers(args: dict) -> dict:
     server_id = args["server_id"]
     include_all = args.get("all", True)
+    bearer_token = args.get("_bearer_token")
 
-    server = server_manager.get_server(server_id)
+    server = server_manager.get_server(server_id, bearer_token)
     if not server:
         raise ValueError(f"Server '{server_id}' not found")
 
@@ -160,18 +161,21 @@ def handle_list_containers(args: dict) -> dict:
 
 
 def handle_start_container(args: dict) -> dict:
-    server = _get_server(args["server_id"])
+    bearer_token = args.get("_bearer_token")
+    server = _get_server(args["server_id"], bearer_token)
     result = ssh_client.docker_start_container(server, args["container"])
     return sanitize_response({"message": f"Started: {result}"})
 
 
 def handle_stop_container(args: dict) -> dict:
-    server = _get_server(args["server_id"])
+    bearer_token = args.get("_bearer_token")
+    server = _get_server(args["server_id"], bearer_token)
     result = ssh_client.docker_stop_container(server, args["container"])
     return sanitize_response({"message": f"Stopped: {result}"})
 
 
 def handle_add_server(args: dict) -> dict:
+    bearer_token = args.get("_bearer_token")
     req = AddServerRequest(
         name=args["name"],
         host=args["host"],
@@ -183,7 +187,7 @@ def handle_add_server(args: dict) -> dict:
         description=args.get("description"),
         tags=args.get("tags", []),
     )
-    cfg = server_manager.add_server(req)
+    cfg = server_manager.add_server(req, bearer_token)
     response = {
         "id": cfg.id,
         "name": cfg.name,
@@ -199,7 +203,8 @@ def handle_add_server(args: dict) -> dict:
 
 
 def handle_view_logs(args: dict) -> dict:
-    server = _get_server(args["server_id"])
+    bearer_token = args.get("_bearer_token")
+    server = _get_server(args["server_id"], bearer_token)
     tail = args.get("tail", 100)
     logs = ssh_client.docker_logs(server, args["container"], tail=tail)
     return sanitize_response({
@@ -210,7 +215,8 @@ def handle_view_logs(args: dict) -> dict:
 
 
 def handle_read_file(args: dict) -> dict:
-    server = _get_server(args["server_id"])
+    bearer_token = args.get("_bearer_token")
+    server = _get_server(args["server_id"], bearer_token)
     max_lines = args.get("max_lines", 1000)
     content = ssh_client.docker_exec_read_file(
         server, args["container"], args["file_path"], max_lines=max_lines
@@ -224,7 +230,8 @@ def handle_read_file(args: dict) -> dict:
 
 
 def handle_exec_command(args: dict) -> dict:
-    server = _get_server(args["server_id"])
+    bearer_token = args.get("_bearer_token")
+    server = _get_server(args["server_id"], bearer_token)
     output = ssh_client.docker_exec_command(server, args["container"], args["command"])
     return sanitize_response({
         "server": server.name,
@@ -248,15 +255,17 @@ HANDLERS = {
 }
 
 
-def execute_tool(name: str, args: dict) -> dict:
+def execute_tool(name: str, args: dict, bearer_token: Optional[str] = None) -> dict:
     handler = HANDLERS.get(name)
     if not handler:
         raise ValueError(f"Unknown tool: {name}")
-    return handler(args)
+    # Добавляем bearer_token в аргументы для обработчиков
+    args_with_token = {**args, '_bearer_token': bearer_token}
+    return handler(args_with_token)
 
 
-def _get_server(server_id: str):
-    server = server_manager.get_server(server_id)
+def _get_server(server_id: str, bearer_token: Optional[str] = None):
+    server = server_manager.get_server(server_id, bearer_token)
     if not server:
         raise ValueError(f"Server '{server_id}' not found")
     return server

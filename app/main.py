@@ -61,7 +61,7 @@ async def handle_mcp(request: Request, auth_level: AuthLevel, token: Optional[st
         tools = [TOOL_SCHEMAS[name] for name in allowed if name in TOOL_SCHEMAS]
         return JSONResponse(mcp_result(req_id, {"tools": tools}))
 
-    # ── tools/call ────────────────────────────────────────────────────────────
+        # ── tools/call ────────────────────────────────────────────────────────────
     if method == "tools/call":
         tool_name = params.get("name", "")
         tool_args = params.get("arguments") or {}
@@ -71,7 +71,7 @@ async def handle_mcp(request: Request, auth_level: AuthLevel, token: Optional[st
                 f"Tool '{tool_name}' is not available for your access level"))
 
         try:
-            result = execute_tool(tool_name, tool_args)
+            result = execute_tool(tool_name, tool_args, token)
             safe_result = sanitize_response(result)
             if str(result) != str(safe_result):
                 logger.warning(
@@ -141,11 +141,13 @@ async def mcp_dynamic_role(username: str, request: Request, authorization: Optio
 async def api_create_role(req: CreateRoleRequest, authorization: Optional[str] = Header(None)):
     """Создает новую роль (только для admin)"""
     verify_web_token(authorization)
+    admin_bearer = authorization.removeprefix("Bearer ").strip() if authorization else None
     role = role_manager.create_role(
         username=req.username,
         allowed_tools=req.allowed_tools,
         token=req.token,
-        description=req.description
+        description=req.description,
+        admin_bearer=admin_bearer
     )
     result = role.model_dump()
     
@@ -205,6 +207,39 @@ async def api_delete_role(username: str, authorization: Optional[str] = Header(N
     return {"message": "Role deleted"}
 
 
+@app.post("/api/roles/{username}/regenerate-token")
+async def api_regenerate_role_token(username: str, authorization: Optional[str] = Header(None)):
+    """Регенерирует токен для роли (только для admin)"""
+    verify_web_token(authorization)
+    admin_bearer = authorization.removeprefix("Bearer ").strip() if authorization else None
+    
+    # Получаем старую роль
+    old_role = role_manager.get_role(username)
+    if not old_role:
+        raise HTTPException(404, "Role not found")
+    
+    # Генерируем новый токен
+    new_token = role_manager.generate_token()
+    
+    # Удаляем старую роль и создаем новую с новым токеном
+    role_manager.delete_role(username)
+    new_role = role_manager.create_role(
+        username=username,
+        allowed_tools=old_role.allowed_tools,
+        token=new_token,
+        description=old_role.description,
+        admin_bearer=admin_bearer
+    )
+    
+    logger.info(f"\n{'='*60}")
+    logger.info(f"🔄 TOKEN REGENERATED: {username}")
+    logger.info(f"🔑 New Token: {new_token}")
+    logger.info(f"🌐 MCP Endpoint: /mcp/{username}")
+    logger.info(f"{'='*60}\n")
+    
+    return sanitize_response({"username": username, "new_token": new_token})
+
+
 # ── Web UI API ───────────────────────────────────────────────────────────────
 
 @app.get("/api/servers")
@@ -218,7 +253,8 @@ async def api_list_servers(authorization: Optional[str] = Header(None)):
 @app.post("/api/servers")
 async def api_add_server(req: AddServerRequest, authorization: Optional[str] = Header(None)):
     verify_web_token(authorization)
-    cfg = server_manager.add_server(req)
+    bearer_token = authorization.removeprefix("Bearer ").strip() if authorization else None
+    cfg = server_manager.add_server(req, bearer_token)
     result = cfg.model_dump(exclude={"password"})
     return sanitize_response(result)
 
