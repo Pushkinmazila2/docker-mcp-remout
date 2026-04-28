@@ -308,6 +308,77 @@ async def api_import_keys(master_key: str, salt: str, authorization: Optional[st
         raise HTTPException(500, "Failed to import keys")
 
 
+@app.get("/api/crypto/encrypted-backup")
+async def api_encrypted_backup(authorization: Optional[str] = Header(None)):
+    """Экспорт зашифрованных данных без мастер-ключей (доступно user и admin)"""
+    # Проверяем любой валидный токен (не только admin)
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(401, "Unauthorized")
+    
+    token = authorization.removeprefix("Bearer ").strip()
+    from .auth import USER_TOKEN, ADMIN_TOKEN, WEB_UI_TOKEN
+    from . import role_manager
+    
+    # Проверяем, что токен валидный (admin, user, webui или роль)
+    is_valid = (token in (USER_TOKEN, ADMIN_TOKEN, WEB_UI_TOKEN) or 
+                role_manager.get_role_by_token(token) is not None)
+    
+    if not is_valid:
+        raise HTTPException(403, "Forbidden")
+    
+    backup_data = backup.export_encrypted_data_backup()
+    logger.info("📦 Encrypted data backup exported (safe to store)")
+    return backup_data
+
+
+@app.post("/api/crypto/encrypted-restore")
+async def api_encrypted_restore(request: Request, authorization: Optional[str] = Header(None)):
+    """Импорт зашифрованных данных (доступно user и admin)"""
+    # Проверяем любой валидный токен
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(401, "Unauthorized")
+    
+    token = authorization.removeprefix("Bearer ").strip()
+    from .auth import USER_TOKEN, ADMIN_TOKEN, WEB_UI_TOKEN
+    from . import role_manager
+    
+    is_valid = (token in (USER_TOKEN, ADMIN_TOKEN, WEB_UI_TOKEN) or 
+                role_manager.get_role_by_token(token) is not None)
+    
+    if not is_valid:
+        raise HTTPException(403, "Forbidden")
+    
+    backup_data = await request.json()
+    success = backup.import_encrypted_data_backup(backup_data)
+    if success:
+        logger.info("✅ Encrypted data restored successfully")
+        return {"message": "Encrypted data restored successfully"}
+    else:
+        raise HTTPException(500, "Failed to restore encrypted data")
+
+
+@app.get("/api/crypto/full-backup")
+async def api_full_backup(authorization: Optional[str] = Header(None)):
+    """Полный экспорт ВСЕХ данных включая мастер-ключи (только для admin)"""
+    verify_web_token(authorization)
+    backup_data = backup.export_full_backup()
+    logger.warning("⚠️  CRITICAL: FULL BACKUP WITH MASTER KEYS EXPORTED!")
+    return backup_data
+
+
+@app.post("/api/crypto/full-restore")
+async def api_full_restore(request: Request, authorization: Optional[str] = Header(None)):
+    """Полный импорт всех данных включая мастер-ключи (только для admin)"""
+    verify_web_token(authorization)
+    backup_data = await request.json()
+    success = backup.import_full_backup(backup_data)
+    if success:
+        logger.info("✅ Full backup with master keys restored successfully")
+        return {"message": "Full backup restored successfully"}
+    else:
+        raise HTTPException(500, "Failed to restore backup")
+
+
 # ── Health ────────────────────────────────────────────────────────────────────
 
 @app.get("/health")
