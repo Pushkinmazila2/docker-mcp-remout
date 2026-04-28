@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from .auth import get_auth_level, get_allowed_tools, check_tool_access, verify_web_token
 from .docker_tools import TOOL_SCHEMAS, execute_tool
 from .models import MCPRequest, MCPResponse, AuthLevel, AddServerRequest, CreateRoleRequest, UpdateRoleRequest
-from . import server_manager, role_manager
+from . import server_manager, role_manager, backup
 from .security import sanitize_response
 
 logging.basicConfig(level=logging.INFO)
@@ -275,6 +275,37 @@ async def web_ui():
     from pathlib import Path
     html_path = Path(__file__).parent / "web" / "index.html"
     return HTMLResponse(content=html_path.read_text())
+
+
+# ── Crypto Backup API ───────────────────────────────────────────────────────
+
+@app.get("/api/crypto/export")
+async def api_export_keys(authorization: Optional[str] = Header(None)):
+    """Экспортирует мастер-ключ и соль (только для admin)"""
+    verify_web_token(authorization)
+    keys = backup.export_master_keys()
+    logger.warning("⚠️  MASTER KEYS EXPORTED - ensure they are stored securely!")
+    return keys
+
+
+@app.get("/api/crypto/backup-instructions")
+async def api_backup_instructions(authorization: Optional[str] = Header(None)):
+    """Получить инструкции по резервному копированию (только для admin)"""
+    verify_web_token(authorization)
+    instructions = backup.get_backup_instructions()
+    return {"instructions": instructions}
+
+
+@app.post("/api/crypto/import")
+async def api_import_keys(master_key: str, salt: str, authorization: Optional[str] = Header(None)):
+    """Импортирует мастер-ключ и соль (только для admin)"""
+    verify_web_token(authorization)
+    success = backup.import_master_keys(master_key, salt)
+    if success:
+        logger.info("✅ Master keys imported successfully")
+        return {"message": "Keys imported successfully"}
+    else:
+        raise HTTPException(500, "Failed to import keys")
 
 
 # ── Health ────────────────────────────────────────────────────────────────────

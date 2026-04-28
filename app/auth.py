@@ -51,6 +51,12 @@ def print_startup_info():
     else:
         print("\n🎭 CUSTOM ROLES: None (create via API)")
     
+    print("\n" + "="*60)
+    print("⚠️  IMPORTANT: BACKUP YOUR ENCRYPTION KEYS!")
+    print("="*60)
+    print("All passwords and SSH keys are encrypted.")
+    print("To backup: GET /api/crypto/backup-instructions")
+    print("Without backup, data loss on container recreation!")
     print("="*60 + "\n")
 
 # Вызываем при импорте модуля
