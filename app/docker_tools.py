@@ -153,7 +153,7 @@ def handle_list_containers(args: dict) -> dict:
     if not server:
         raise ValueError(f"Server '{server_id}' not found")
 
-    containers = ssh_client.docker_list_containers(server, all_containers=include_all)
+    containers = ssh_client.docker_list_containers(server, all_containers=include_all, bearer_token=bearer_token)
     return sanitize_response({
         "server": server.name,
         "containers": [c.model_dump() for c in containers],
@@ -163,14 +163,14 @@ def handle_list_containers(args: dict) -> dict:
 def handle_start_container(args: dict) -> dict:
     bearer_token = args.get("_bearer_token")
     server = _get_server(args["server_id"], bearer_token)
-    result = ssh_client.docker_start_container(server, args["container"])
+    result = ssh_client.docker_start_container(server, args["container"], bearer_token)
     return sanitize_response({"message": f"Started: {result}"})
 
 
 def handle_stop_container(args: dict) -> dict:
     bearer_token = args.get("_bearer_token")
     server = _get_server(args["server_id"], bearer_token)
-    result = ssh_client.docker_stop_container(server, args["container"])
+    result = ssh_client.docker_stop_container(server, args["container"], bearer_token)
     return sanitize_response({"message": f"Stopped: {result}"})
 
 
@@ -206,7 +206,7 @@ def handle_view_logs(args: dict) -> dict:
     bearer_token = args.get("_bearer_token")
     server = _get_server(args["server_id"], bearer_token)
     tail = args.get("tail", 100)
-    logs = ssh_client.docker_logs(server, args["container"], tail=tail)
+    logs = ssh_client.docker_logs(server, args["container"], tail=tail, bearer_token=bearer_token)
     return sanitize_response({
         "server": server.name,
         "container": args["container"],
@@ -219,7 +219,7 @@ def handle_read_file(args: dict) -> dict:
     server = _get_server(args["server_id"], bearer_token)
     max_lines = args.get("max_lines", 1000)
     content = ssh_client.docker_exec_read_file(
-        server, args["container"], args["file_path"], max_lines=max_lines
+        server, args["container"], args["file_path"], max_lines=max_lines, bearer_token=bearer_token
     )
     return sanitize_response({
         "server": server.name,
@@ -232,7 +232,7 @@ def handle_read_file(args: dict) -> dict:
 def handle_exec_command(args: dict) -> dict:
     bearer_token = args.get("_bearer_token")
     server = _get_server(args["server_id"], bearer_token)
-    output = ssh_client.docker_exec_command(server, args["container"], args["command"])
+    output = ssh_client.docker_exec_command(server, args["container"], args["command"], bearer_token=bearer_token)
     return sanitize_response({
         "server": server.name,
         "container": args["container"],

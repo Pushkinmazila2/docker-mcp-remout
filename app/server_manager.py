@@ -80,13 +80,22 @@ def add_server(req: AddServerRequest, bearer_token: Optional[str] = None) -> Ser
         if result.returncode != 0:
             raise RuntimeError(f"ssh-keygen failed: {result.stderr}")
 
-        os.chmod(private_key_path, 0o600)
-
-        # Читаем публичный ключ
+        # Читаем приватный и публичный ключи
+        private_key_content = private_key_path.read_text()
         pub_key_path = Path(str(private_key_path) + ".pub")
         pub_key = pub_key_path.read_text().strip()
+        
+        # Шифруем приватный ключ
+        if bearer_token:
+            encrypted_private_key = crypto.encrypt_with_bearer(private_key_content, bearer_token)
+        else:
+            encrypted_private_key = crypto.encrypt_with_master_key(private_key_content)
+        
+        # Перезаписываем файл зашифрованным содержимым
+        private_key_path.write_text(encrypted_private_key)
+        os.chmod(private_key_path, 0o600)
 
-        # Подключаемся по паролю и устанавливаем ключ
+                # Подключаемся по паролю и устанавливаем ключ
         try:
             import paramiko
             client = paramiko.SSHClient()
@@ -119,6 +128,8 @@ def add_server(req: AddServerRequest, bearer_token: Optional[str] = None) -> Ser
             final_auth_type = ServerAuthType.GENERATE_KEY
             final_key_path = str(private_key_path)
             description = (req.description or "") + f"\n[SSH key auto-installed on {req.host}]"
+            # Пароль больше не нужен, так как используем ключ
+            final_password = None
             
         except Exception as e:
             # Если не удалось установить ключ, сохраняем пароль
